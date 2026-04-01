@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard TV</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #080808;
+    --surface: #111111;
+    --border: #1c1c1c;
+    --clock: #2e2e2e;
+    --date: #252525;
+    --label: #333;
+    --msg-text: #bbb;
+    --contact: #25D366;
+    --contact-dim: #1a9e4e;
+    --time-color: #2a2a2a;
+    --wa-bg: #0a1a0f;
+    --wa-border: rgba(37,211,102,0.15);
+    --new-bg: #0c1f12;
+    --new-border: rgba(37,211,102,0.35);
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    font-family: 'DM Sans', sans-serif;
+    overflow: hidden;
+  }
+
+  #app {
+    width: 100vw;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 1fr auto;
+    padding: 4vh 5vw;
+    gap: 3vh;
+  }
+
+  #top {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1vh;
+  }
+
+  #clock {
+    font-family: 'DM Mono', monospace;
+    font-weight: 300;
+    font-size: clamp(72px, 14vw, 180px);
+    color: var(--clock);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    user-select: none;
+  }
+
+  #date {
+    font-family: 'DM Mono', monospace;
+    font-weight: 300;
+    font-size: clamp(14px, 1.6vw, 22px);
+    color: var(--date);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  #bottom {
+    border-top: 1px solid var(--border);
+    padding-top: 2.5vh;
+  }
+
+  #notif-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 1.8vh;
+  }
+
+  .wa-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--contact-dim);
+    flex-shrink: 0;
+  }
+
+  #notif-label {
+    font-size: clamp(10px, 1vw, 13px);
+    color: var(--label);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  #messages {
+    display: flex;
+    flex-direction: column;
+    gap: 1vh;
+  }
+
+  .msg {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: baseline;
+    gap: 12px;
+    padding: 1.2vh 1.4vw;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: border-color 0.5s, background 0.5s;
+  }
+
+  .msg.new {
+    background: var(--new-bg);
+    border-color: var(--new-border);
+    animation: slideIn 0.35s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg-contact {
+    font-size: clamp(11px, 1.1vw, 14px);
+    font-weight: 400;
+    color: var(--contact);
+    white-space: nowrap;
+    min-width: 120px;
+  }
+
+  .msg-text {
+    font-size: clamp(12px, 1.2vw, 15px);
+    color: var(--msg-text);
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .msg-time {
+    font-family: 'DM Mono', monospace;
+    font-size: clamp(10px, 0.9vw, 12px);
+    color: var(--time-color);
+    white-space: nowrap;
+  }
+
+  #empty {
+    font-size: clamp(12px, 1.1vw, 14px);
+    color: var(--label);
+    padding: 1.5vh 0;
+    letter-spacing: 0.05em;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <div id="clock">00:00:00</div>
+    <div id="date">cargando...</div>
+  </div>
+  <div id="bottom">
+    <div id="notif-header">
+      <div class="wa-dot"></div>
+      <span id="notif-label">WhatsApp — mensajes recientes</span>
+    </div>
+    <div id="messages">
+      <div id="empty">Esperando mensajes...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DAYS   = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+function pad(n){ return String(n).padStart(2,'0'); }
+
+function updateClock(){
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
+  document.getElementById('date').textContent =
+    DAYS[now.getDay()]+' '+now.getDate()+' de '+MONTHS[now.getMonth()]+' '+now.getFullYear();
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+let lastIds = new Set();
+
+async function fetchMessages(){
+  try {
+    const res = await fetch('/.netlify/functions/messages');
+    if(!res.ok) return;
+    const msgs = await res.json();
+    renderMessages(msgs);
+  } catch(e){}
+}
+
+function renderMessages(msgs){
+  const container = document.getElementById('messages');
+  if(!msgs.length){
+    container.innerHTML = '<div id="empty">Esperando mensajes...</div>';
+    return;
+  }
+  container.innerHTML = msgs.map(m => {
+    const isNew = !lastIds.has(m.id);
+    return `<div class="msg ${isNew?'new':''}">
+      <span class="msg-contact">${escHtml(m.contact)}</span>
+      <span class="msg-text">${escHtml(m.text)}</span>
+      <span class="msg-time">${escHtml(m.time)}</span>
+    </div>`;
+  }).join('');
+  lastIds = new Set(msgs.map(m=>m.id));
+}
+
+function escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+fetchMessages();
+setInterval(fetchMessages, 4000);
+</script>
+</body>
+</html>
